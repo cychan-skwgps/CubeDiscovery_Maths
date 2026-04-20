@@ -290,7 +290,7 @@
                 currentQuestion = { type: 'count', targetName: colorPalette[targetIdx].name, targetHex: colorPalette[targetIdx].hex, answer: counts[targetIdx] };
                 questionMain.innerHTML = `正方體上有幾個 <span style="background:${currentQuestion.targetHex}; color: ${isDark(currentQuestion.targetHex)?'white':'black'}" class="px-3 py-1 rounded-xl shadow-sm">「${currentQuestion.targetName}」</span> 面？`;
             }
-            const base = isHardMode ? 0.1 : 0.01;
+            const base = isHardMode ? 0.1 : 0.015;
             rotSpeed = { x: base + Math.random() * 0.02, y: base + Math.random() * 0.02, z: base + Math.random() * 0.02 };
             renderOptions();
         }
