@@ -194,7 +194,7 @@
 
         const INITIAL_TIME = 45;
         let score = 0, combo = 0, timeLeft = INITIAL_TIME, gameActive = false, timerInterval;
-        let lives = 8, angleX = 0, angleY = 0, angleZ = 0, rotSpeed = { x: 0, y: 0, z: 0 };
+        let lives = 5, angleX = 0, angleY = 0, angleZ = 0, rotSpeed = { x: 0, y: 0, z: 0 };
         let cubeFaces = []; 
         let currentQuestion = null; 
         let isHardMode = false;
@@ -499,7 +499,7 @@
             sfx.start(); // 播放開始音效
 
             isHardMode = mode === 'hard';
-            score = 0; combo = 0; timeLeft = INITIAL_TIME; lives = 8; gameActive = true; isFever = false;
+            score = 0; combo = 0; timeLeft = INITIAL_TIME; lives = 5; gameActive = true; isFever = false;
             scoreEl.innerText = '0'; timerEl.innerText = INITIAL_TIME;
             
             // 重置進度條
