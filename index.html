@@ -83,7 +83,12 @@
                         <p id="score" class="text-2xl font-black">0</p>
                     </div>
 
-                    <button id="quick-exit-btn" class="w-10 h-10 flex items-center justify-center bg-white border-2 border-slate-200 text-slate-400 hover:text-rose-500 rounded-xl transition-all">
+                    <!-- 音效開關按鈕 -->
+                    <button id="toggle-sound-btn" class="w-10 h-10 flex items-center justify-center bg-white border-2 border-slate-200 text-slate-400 hover:text-indigo-500 rounded-xl transition-all" title="音效開關">
+                        <span id="sound-icon" class="text-xl">🔊</span>
+                    </button>
+
+                    <button id="quick-exit-btn" class="w-10 h-10 flex items-center justify-center bg-white border-2 border-slate-200 text-slate-400 hover:text-rose-500 rounded-xl transition-all" title="重設遊戲">
                         <svg xmlns="http://www.w3.org/2000/svg" class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M6 18L18 6M6 6l12 12" /></svg>
                     </button>
                 </div>
@@ -196,6 +201,97 @@
         let isFever = false;
         let currentLeaderboardTab = 'normal';
 
+        /* --- 音效合成系統 (Web Audio API) --- */
+        let audioCtx;
+        let isMuted = false;
+
+        function initAudio() {
+            if (!audioCtx) {
+                audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            }
+            if (audioCtx.state === 'suspended') {
+                audioCtx.resume();
+            }
+        }
+
+        document.getElementById('toggle-sound-btn').onclick = () => {
+            isMuted = !isMuted;
+            document.getElementById('sound-icon').innerText = isMuted ? '🔇' : '🔊';
+            if (!isMuted) initAudio();
+        };
+
+        // 改良版的音效播放函數，加入 delay 參數以實現精準的音樂節奏
+        function playNote(freq, type, duration, vol=0.1, delay=0, slideFreq=null) {
+            if (isMuted) return;
+            initAudio();
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+            osc.type = type;
+            osc.connect(gain);
+            gain.connect(audioCtx.destination);
+            
+            const startTime = audioCtx.currentTime + delay;
+            const stopTime = startTime + duration;
+
+            osc.frequency.setValueAtTime(freq, startTime);
+            if (slideFreq) {
+                osc.frequency.exponentialRampToValueAtTime(slideFreq, stopTime);
+            }
+            
+            // 加入平滑的音量起伏，避免波形截斷產生的「啵」聲
+            gain.gain.setValueAtTime(0, startTime);
+            gain.gain.linearRampToValueAtTime(vol, startTime + 0.01); 
+            gain.gain.exponentialRampToValueAtTime(0.001, stopTime);
+            
+            osc.start(startTime);
+            osc.stop(stopTime);
+        }
+
+        const sfx = {
+            correct: () => {
+                // 歡樂的「叮咚」(G5 -> C6)
+                playNote(783.9, 'sine', 0.1, 0.15, 0); 
+                playNote(1046.5, 'sine', 0.2, 0.15, 0.1); 
+            },
+            combo: () => {
+                // 更高昂的連擊「叮咚」(C6 -> E6)
+                playNote(1046.5, 'sine', 0.1, 0.15, 0); 
+                playNote(1318.5, 'sine', 0.2, 0.15, 0.1); 
+            },
+            feverStart: () => {
+                // 充滿活力的 Fever 號角聲 (C5-E5-G5-C6)
+                playNote(523.2, 'square', 0.1, 0.1, 0);   
+                playNote(659.2, 'square', 0.1, 0.1, 0.1); 
+                playNote(783.9, 'square', 0.1, 0.1, 0.2); 
+                playNote(1046.5, 'square', 0.3, 0.1, 0.3, 1567.9); 
+            },
+            feverHit: () => {
+                // 閃閃發光的星星聲
+                playNote(1567.9, 'sine', 0.05, 0.1, 0); 
+                playNote(2093.0, 'sine', 0.3, 0.1, 0.05); 
+            },
+            wrong: () => {
+                // 可愛滑稽的「哎呀」失敗聲 (F4 往下掉)
+                playNote(349.2, 'triangle', 0.15, 0.2, 0); 
+                playNote(261.6, 'triangle', 0.3, 0.2, 0.15, 200); 
+            },
+            start: () => {
+                // 充滿幹勁的開始音階 (G4-C5-E5-C6)
+                playNote(392.0, 'square', 0.1, 0.1, 0);   
+                playNote(523.2, 'square', 0.1, 0.1, 0.15); 
+                playNote(659.2, 'square', 0.1, 0.1, 0.3); 
+                playNote(1046.5, 'square', 0.4, 0.1, 0.45); 
+            },
+            gameOver: () => {
+                // 有點可惜但很可愛的結束音
+                playNote(392.0, 'triangle', 0.15, 0.2, 0);   
+                playNote(311.1, 'triangle', 0.15, 0.2, 0.2); 
+                playNote(261.6, 'triangle', 0.15, 0.2, 0.4); 
+                playNote(196.0, 'triangle', 0.5, 0.2, 0.6, 150); 
+            }
+        };
+        /* ---------------------------------- */
+
         function initCanvas() {
             const rect = canvas.parentElement.getBoundingClientRect();
             canvas.width = rect.width;
@@ -288,7 +384,7 @@
                 cubeFaces = faces;
                 const targetIdx = Math.floor(Math.random() * 6);
                 currentQuestion = { type: 'count', targetName: colorPalette[targetIdx].name, targetHex: colorPalette[targetIdx].hex, answer: counts[targetIdx] };
-                questionMain.innerHTML = `正方體上有幾個 <span style="background:${currentQuestion.targetHex}; color: ${isDark(currentQuestion.targetHex)?'white':'black'}" class="px-3 py-1 rounded-xl shadow-sm">「${currentQuestion.targetName}」</span> 面？`;
+                questionMain.innerHTML = `正方體上有多少個 <span style="background:${currentQuestion.targetHex}; color: ${isDark(currentQuestion.targetHex)?'white':'black'}" class="px-3 py-1 rounded-xl shadow-sm">「${currentQuestion.targetName}」</span> 面？`;
             }
             const base = isHardMode ? 0.1 : 0.015;
             rotSpeed = { x: base + Math.random() * 0.02, y: base + Math.random() * 0.02, z: base + Math.random() * 0.02 };
@@ -327,16 +423,26 @@
             const isCorrect = val === currentQuestion.answer;
             const icon = document.getElementById('feedback-icon');
             icon.className = "text-[15rem] font-black opacity-0"; void icon.offsetWidth;
+            
             if (isCorrect) {
                 combo++;
                 let points = (isHardMode ? 40 : 20) + Math.min(combo, 10) * 5;
                 if (isFever) points *= 2; 
                 score += points;
                 icon.innerText = "✅"; icon.classList.add('feedback-correct');
+
+                // 音效邏輯
+                if (combo === 5) sfx.feverStart();
+                else if (combo > 5) sfx.feverHit();
+                else if (combo > 1) sfx.combo();
+                else sfx.correct();
+
             } else {
                 combo = 0; lives--;
                 icon.innerText = "❌"; icon.classList.add('feedback-error');
-                updateHearts(); if (lives <= 0) { endGame("生命耗盡！"); return; }
+                sfx.wrong();
+                updateHearts(); 
+                if (lives <= 0) { endGame("生命耗盡！"); return; }
             }
             scoreEl.innerText = score; updateComboUI(); generateChallenge();
         }
@@ -353,7 +459,7 @@
         }
 
         function updateHearts() {
-            heartsContainer.innerHTML = Array(8).fill(0).map((_, i) => `<span class="text-xl transition-all duration-300 ${i < lives ? 'scale-110' : 'grayscale opacity-20 scale-75'}">❤️</span>`).join('');
+            heartsContainer.innerHTML = Array(6).fill(0).map((_, i) => `<span class="text-xl transition-all duration-300 ${i < lives ? 'scale-110' : 'grayscale opacity-20 scale-75'}">❤️</span>`).join('');
         }
 
         function updateLeaderboard(tab = currentLeaderboardTab) {
@@ -377,6 +483,9 @@
         }
 
         function startGame(mode) {
+            initAudio(); // 確保使用者互動後解鎖音效
+            sfx.start(); // 播放開始音效
+
             isHardMode = mode === 'hard';
             score = 0; combo = 0; timeLeft = INITIAL_TIME; lives = 8; gameActive = true; isFever = false;
             scoreEl.innerText = '0'; timerEl.innerText = INITIAL_TIME;
@@ -412,6 +521,7 @@
         }
 
         function endGame(reason) {
+            sfx.gameOver(); // 播放結束音效
             gameActive = false; clearInterval(timerInterval);
             document.getElementById('final-score').innerText = score;
             document.getElementById('end-title').innerText = reason;
